@@ -33,8 +33,8 @@ This project provides foundational tools for understanding ECC, ECDSA, and block
 ## Requirements
 
 The following packages are required to run this project:
-hashlib
-datetime
+- hashlib
+- datetime
 
 ## Installation
 
