@@ -1,8 +1,6 @@
-# Imports
 import sys
 import secrets
 import hashlib
-from Crypto.Hash import RIPEMD160
 
 # Constants
 A = 0
@@ -191,9 +189,6 @@ class Sha256Point(Point):
         else:
             return b"\x04" + self.x.num.to_bytes(32, "big") + self.y.num.to_bytes(32, "big")
 
-    def hash160(self, compressed=True):
-        return RIPEMD160.new(hashlib.sha256(self.sec(compressed)).digest()).digest()
-
     def encode_base58(self, s):
         count = 0
         for c in s:
@@ -213,9 +208,12 @@ class Sha256Point(Point):
         return self.encode_base58(b + (hashlib.sha256(hashlib.sha256(b).digest()).digest())[:4])
 
     def address(self, compressed=True, testnet=False):
-        h160 = self.hash160(compressed)
+        h160 = self._hash160(self.sec(compressed))
         prefix = b"\x6f" if testnet else b"\x00"
         return self.encode_base58_checksum(prefix + h160)
+
+    def _hash160(self, s):
+        return hashlib.new("ripemd160", hashlib.sha256(s).digest()).digest()
 
     @classmethod
     def parse(cls, sec_bin):
@@ -239,27 +237,24 @@ class Sha256Point(Point):
             return Sha256Point(x, odd_beta)
 
 
-# Point G on SHA-256 Curve
-G = Sha256Point(
-    0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
-    0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
-)
-
-
-# Elliptic Curve Digital Signature Algorithm
+# Signature for ECDSA
 class Signature:
     """
-    Represents a digital signature in the context of elliptic curve digital signature algorithm (ECDSA).
+    Represents a digital signature used in elliptic curve cryptography (ECC) and the Elliptic Curve Digital Signature Algorithm (ECDSA).
     """
 
     def __init__(self, r, s):
         self.r = r
         self.s = s
 
+    def __repr__(self):
+        return f"Signature({self.r}, {self.s})"
 
+
+# Private Key for ECDSA
 class PrivateKey:
     """
-    Represents a private key in the context of elliptic curve cryptography (ECC).
+    Represents a private key in elliptic curve cryptography (ECC) and provides methods for signing messages and generating public keys.
     """
 
     def __init__(self, secret):
@@ -278,88 +273,31 @@ class PrivateKey:
             s = N - s
         return Signature(r, s)
 
+    def wif(self, compressed=True, testnet=False):
+        secret_bytes = self.secret.to_bytes(32, "big")
+        if testnet:
+            prefix = b"\xef"
+        else:
+            prefix = b"\x80"
+        if compressed:
+            suffix = b"\x01"
+        else:
+            suffix = b""
+        return self.point.encode_base58_checksum(prefix + secret_bytes + suffix)
 
+
+# Elliptic Curve Generator Point
+G = Sha256Point(
+    0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+    0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
+)
+
+# Double SHA-256 Hash Function
 def double_sha256(s):
-    """
-    Performs double SHA-256 hashing on the input data.
-
-    Args:
-        s (bytes): Input data to be hashed.
-
-    Returns:
-        bytes: Double SHA-256 hashed result.
-    """
     return hashlib.sha256(hashlib.sha256(s).digest()).digest()
 
 
-def encode_base58(s):
-    """
-    Converts bytes data to Base58 format.
-
-    Args:
-        s (bytes): Input data to be converted.
-
-    Returns:
-        str: Base58 encoded string.
-    """
-    count = 0
-    for c in s:
-        if c == 0:
-            count += 1
-        else:
-            break
-    num = int.from_bytes(s, "big")
-    prefix = "1" * count
-    result = ""
-    while num > 0:
-        num, mod = divmod(num, 58)
-        result = BASE58_ALPHABET[mod] + result
-    return prefix + result
-
-
-def encode_base58_checksum(b):
-    """
-    Converts bytes data to Base58 format with checksum.
-
-    Args:
-        b (bytes): Input data to be converted.
-
-    Returns:
-        str: Base58 encoded string with checksum.
-    """
-    return encode_base58(b + double_sha256(b)[:4])
-
-
-def hash160(s):
-    """
-    Computes RIPEMD-160 hash of the SHA-256 hashed input data.
-
-    Args:
-        s (bytes): Input data to be hashed.
-
-    Returns:
-        bytes: RIPEMD-160 hashed result.
-    """
-    return hashlib.new("ripemd160", hashlib.sha256(s).digest()).digest()
-
-
-def address(s, testnet=False):
-    """
-    Generates a Bitcoin-style address from input data.
-
-    Args:
-        s (bytes): Input data for address generation.
-        testnet (bool, optional): Flag indicating if testnet address should be generated. Defaults to False.
-
-    Returns:
-        str: Bitcoin-style address.
-    """
-    h160 = hash160(s)
-    prefix = b"\x6f" if testnet else b"\x00"
-    return encode_base58_checksum(prefix + h160)
-
-
-# Example Usage
+# Main Execution for Example Usage
 if __name__ == "__main__":
     secret = 0x12345abcdef67890
     private_key = PrivateKey(secret)
@@ -374,5 +312,5 @@ if __name__ == "__main__":
 
     message = b"Hello, world!"
     digest = hashlib.sha256(message).digest()
-    address = address(digest)
+    address = public_key.address()
     print("Address:", address)
