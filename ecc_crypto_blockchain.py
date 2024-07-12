@@ -1,6 +1,6 @@
-from ecc_crypto_operations import Sha256Point, PrivateKey, G, address
 import hashlib
 import datetime
+from ecc_crypto_operations import Sha256Point, PrivateKey, G
 
 class Block:
     """
@@ -20,6 +20,7 @@ class Block:
         """
         header = str(self.timestamp) + str(self.transactions) + str(self.previous_hash) + str(self.nonce)
         self.hash = hashlib.sha256(header.encode()).hexdigest()
+        return self.hash
 
     def mine_block(self, difficulty=4):
         """
